@@ -31,11 +31,6 @@
 #include <M5StickCPlus.h>
 
 
-const float accelerationThreshold = 2.5; // threshold of significant in G's
-const int numSamples = 119;
-
-int samplesRead = numSamples;
-
 // global variables used for TensorFlow Lite (Micro)
 tflite::ErrorReporter* error_reporter = nullptr;
 
@@ -56,10 +51,14 @@ byte tensorArena[tensorArenaSize] __attribute__((aligned(16)));
 
 // array to map gesture index to a name
 const char* GESTURES[] = {
-  "clockwise",
-  "counterclock",
-  "throw",
-  "thrust"
+  "t",
+  "d",
+  "l",
+  "r"
+  // "tr",
+  // "tl",
+  // "br",
+  // "bl"
 };
 
 #define NUM_GESTURES (sizeof(GESTURES) / sizeof(GESTURES[0]))
@@ -98,73 +97,66 @@ void setup() {
 
 void loop() {
   float aX, aY, aZ, gX, gY, gZ;
-
-  // wait for significant motion
-  while (samplesRead == numSamples) {
-      // read the acceleration data
-    M5.IMU.getAccelData(&aX, &aY, &aZ);
-
-      // sum up the absolutes
-      float aSum = fabs(aX) + fabs(aY) + fabs(aZ);
-
-      // check if it's above the threshold
-      if (aSum >= accelerationThreshold) {
-        // reset the sample read count
-        samplesRead = 0;
-        break;
-      }
-  }
-
-  // check if the all the required samples have been read since
-  // the last time the significant motion was detected
-  while (samplesRead < numSamples) {
-    // check if new acceleration AND gyroscope data is available
-      // read the acceleration and gyroscope data
-      M5.IMU.getAccelData(&aX, &aY, &aZ);
-      M5.IMU.getGyroData(&gX,&gY,&gZ);
+  // check if new acceleration AND gyroscope data is available
+  // read the acceleration and gyroscope data
+  M5.IMU.getAccelData(&aX, &aY, &aZ);
+  M5.IMU.getGyroData(&gX,&gY,&gZ);
 
 
-      // normalize the IMU data between 0 to 1 and store in the model's
-      // input tensor
-      tflInputTensor->data.f[samplesRead * 6 + 0] = (aX + 4.0) / 8.0;
-      tflInputTensor->data.f[samplesRead * 6 + 1] = (aY + 4.0) / 8.0;
-      tflInputTensor->data.f[samplesRead * 6 + 2] = (aZ + 4.0) / 8.0;
-      tflInputTensor->data.f[samplesRead * 6 + 3] = (gX + 2000.0) / 4000.0;
-      tflInputTensor->data.f[samplesRead * 6 + 4] = (gY + 2000.0) / 4000.0;
-      tflInputTensor->data.f[samplesRead * 6 + 5] = (gZ + 2000.0) / 4000.0;
+  // normalize the IMU data between 0 to 1 and store in the model's
+  // input tensor
+  tflInputTensor->data.f[0] = (aX + 4.0) / 8.0;
+  tflInputTensor->data.f[1] = (aY + 4.0) / 8.0;
+  tflInputTensor->data.f[2] = (aZ + 4.0) / 8.0;
+  tflInputTensor->data.f[3] = (gX + 20.0) / 40.0;
+  tflInputTensor->data.f[4] = (gY + 20.0) / 40.0;
+  tflInputTensor->data.f[5] = (gZ + 20.0) / 40.0;
 
-      samplesRead++;
 
-      if (samplesRead == numSamples) {
-        // Run inferencing
-        TfLiteStatus invokeStatus = tflInterpreter->Invoke();
-        if (invokeStatus != kTfLiteOk) {
-          Serial.println("Invoke failed!");
-          while (1);
-          return;
+    // Run inferencing
+    TfLiteStatus invokeStatus = tflInterpreter->Invoke();
+    if (invokeStatus != kTfLiteOk) {
+      Serial.println("Invoke failed!");
+      while (1);
+      return;
+    }
+
+    // Loop through the output tensor values from the model
+    for (int i = 0; i < NUM_GESTURES; i++) {
+      Serial.print(GESTURES[i]);
+      Serial.print(": ");
+      Serial.println(tflOutputTensor->data.f[i], 6);
+        M5.Lcd.setCursor(30, 40);
+
+      if(tflOutputTensor->data.f[i]>0.99){
+        if(i == 0){
+          M5.Lcd.fillScreen(RED);
+          M5.Lcd.print("UP       ");
+        }else if(i == 1){
+          M5.Lcd.fillScreen(GREEN);
+          M5.Lcd.print("DOWN     ");
+        }else if(i == 2){
+          M5.Lcd.fillScreen(ORANGE);
+          M5.Lcd.print("LEFT     ");
+        }else if(i == 3){
+          M5.Lcd.fillScreen(OLIVE);
+          M5.Lcd.print("RIGHT    ");
         }
-
-        // Loop through the output tensor values from the model
-        for (int i = 0; i < NUM_GESTURES; i++) {
-          Serial.print(GESTURES[i]);
-          Serial.print(": ");
-          Serial.println(tflOutputTensor->data.f[i], 6);
-            M5.Lcd.setCursor(30, 40);
-
-          if(tflOutputTensor->data.f[i]>0.9){
-            if(i == 0){
-              M5.Lcd.print("Clock!  ");
-            }else if(i == 1){
-              M5.Lcd.print("Counter!");
-            }else if(i == 2){
-              M5.Lcd.print("Throw!  ");
-            }else if(i == 3){
-              M5.Lcd.print("Thrust! ");
-            }
-          }
-        }
-        Serial.println();
+        // else if(i == 4){
+        //   M5.Lcd.fillScreen(PINK);
+        //   M5.Lcd.print("TOPRIGHT ");
+        // }else if(i == 5){
+        //   M5.Lcd.fillScreen(YELLOW);
+        //   M5.Lcd.print("TOPLEFT  ");
+        // }else if(i == 6){
+        //   M5.Lcd.fillScreen(NAVY);
+        //   M5.Lcd.print("BOTTOMRIGHT");
+        // }else if(i == 7){
+        //   M5.Lcd.fillScreen(PURPLE);
+        //   M5.Lcd.print("BOTTOMLEFT");
+        // }
       }
-  }
-    M5.Lcd.setCursor(30, 60);
+    }
+    Serial.println();
+M5.Lcd.setCursor(30, 60);
 }

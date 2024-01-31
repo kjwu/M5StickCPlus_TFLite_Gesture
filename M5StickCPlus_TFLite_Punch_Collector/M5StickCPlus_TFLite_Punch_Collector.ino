@@ -1,3 +1,22 @@
+/*
+  IMU Capture
+
+  This example uses the on-board IMU to start reading acceleration and gyroscope
+  data from on-board IMU and prints it to the Serial Monitor for one second
+  when the significant motion is detected.
+
+  You can also use the Serial Plotter to graph the data.
+
+  The circuit:
+  - M5StickCPlus.
+
+  Created by Don Coleman, Sandeep Mistry
+  Modified by Dominic Pajak, Sandeep Mistry
+  Modified for M5StickCPlus by Kuan-Ju Wu
+
+  This example code is in the public domain.
+*/
+
 #include <M5StickCPlus.h>
 #include "time.h"
 
@@ -12,29 +31,25 @@ const int numSamples = 119;
 int samplesRead = numSamples;
 
 void setup() {
-  // put your setup code here, to run once:
+
+  Serial.begin(115200);
+
+  //Comment the following if not using M5Stick, for other ESP32, will need to get different library for the IMU
   M5.begin();
   M5.Lcd.setRotation(3);
   M5.Lcd.fillScreen(BLACK);
-
   M5.IMU.Init();
-
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(1, 0, 2);
-
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setCursor(0, 1, 2);
-  Serial.begin(115200);
-  Serial.println("aX,aY,aZ,gX,gY,gZ");
-
 }
 
 void loop() {
-  int mil = millis(); 
   // put your main code here, to run repeatedly:
   M5.Lcd.setCursor(0, 50);
 
-  // 加速度データ取得
+  // Check stillness of the IMU, only start collection if there is movement.
   while (samplesRead == numSamples) {
     // read the acceleration data
     M5.IMU.getAccelData(&accX, &accY, &accZ);
@@ -50,7 +65,7 @@ void loop() {
     }
   }
 
-
+  //collect the acceleration data
   while (samplesRead < numSamples) {
     // check if both new acceleration and gyroscope data is
     // available
